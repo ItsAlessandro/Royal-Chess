@@ -36,14 +36,15 @@ colors = [
     "white", "black"
 ]
 
-# Banned files for pawn and knight attacks TODO check if correct (the comments)
-not_a_file = 18374403900871474942 # pawns
-not_h_file = 9187201950435737471 # pawns
-not_ab_file = 18229723555195321596 # knights
-not_gh_file = 4557430888798830399 # knights
+# Banned files for pawn and knight attacks
+not_a_file = 18374403900871474942 # pawns & knights
+not_h_file = 9187201950435737471 # pawns & knights
+not_ab_file = 18229723555195321596 # knight ext.
+not_gh_file = 4557430888798830399 # knight ext.
 
 # Possible attacks containers
 pawn_attacks = [[0 for _ in range(64)] for _ in range(2)]
+knight_attacks = [0 for _ in range(64)]
 
 # Bitboard utils ------------------------------------------------------- #
 
@@ -115,15 +116,48 @@ def mask_pawn_attacks(side : int, square : int) -> int:
 
     return attacks
 
+# Returns the possible attacks for a knight of a certain side in a certain position
+def mask_knight_attacks(square : int) -> int:
+
+    # result attacks bitboard
+    attacks = 0
+
+    # test container
+    bitboard = 0
+
+    # inserting the piece in the bitboard
+    bitboard = set_bit(bitboard, square)
+
+    if bitboard >> 6 & not_ab_file: attacks |= (bitboard >> 6)
+    if bitboard << 10 & not_ab_file: attacks |= (bitboard << 10)
+    if bitboard >> 15 & not_a_file: attacks |= (bitboard >> 15)
+    if bitboard << 17 & not_a_file: attacks |= (bitboard << 17)
+    
+
+    if bitboard << 6 & not_gh_file: attacks |= (bitboard << 6)
+    if bitboard >> 10 & not_gh_file: attacks |= (bitboard >> 10)
+    if bitboard << 15 & not_h_file: attacks |= (bitboard << 15)
+    if bitboard >> 17 & not_h_file: attacks |= (bitboard >> 17)
+    
+    return attacks
+
 # For every square on the board, it calculates the possible (w & b) pawn attacks
 def init_leaper_attacks() -> None:
 
-    # looping over all the squares
+    # looping over all pawns possible positions
     for i in range(64):
         pawn_attacks[color_enum('white')][i] = mask_pawn_attacks(color_enum('white'), i)
         pawn_attacks[color_enum('black')][i] = mask_pawn_attacks(color_enum('black'), i)
 
+    # looping over all knights possible positions
+    for i in range(64):
+        knight_attacks[i] = mask_knight_attacks(i)
+
 # ---------------------------------------------------------------------- #
 
 # Testing
-print('test functions here')
+
+init_leaper_attacks()
+
+for i in range(64):
+    print_bitboard(knight_attacks[i])
