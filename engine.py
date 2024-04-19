@@ -6,9 +6,9 @@
 #
 # Quick TODO guide for new users:
 # 
-# 1) Do this to run the networing search...
-# 2) Do that to run the game...
-# 3) Do this other thing to run the GUI...
+# 1) Instructions for something...
+# 2) Instructions for something...
+# 3) Instructions for something...
 # 
 # Cedits, resources and people that helped me:
 # - The Chess Programming Wiki - https://www.chessprogramming.org/
@@ -17,7 +17,9 @@
 # Enjoy Royal Chess!
 # ---------------------------------------------------------------------- #
 
-# Constant representation of the chess board, human readable way
+# Constants & Globals
+
+# Representation of the chess board, human readable way
 board_squares = [
   "a8", "b8", "c8", "d8", "e8", "f8", "g8", "h8",
   "a7", "b7", "c7", "d7", "e7", "f7", "g7", "h7",
@@ -29,38 +31,99 @@ board_squares = [
   "a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1"
 ]
 
-# Bitboard util functions ------------------------------------------------- #
+# Colors, sides to move
+colors = [
+    "white", "black"
+]
+
+# Banned files for pawn and knight attacks TODO check if correct (the comments)
+not_a_file = 18374403900871474942 # pawns
+not_h_file = 9187201950435737471 # pawns
+not_ab_file = 18229723555195321596 # knights
+not_gh_file = 4557430888798830399 # knights
+
+# Possible attacks containers
+pawn_attacks = [[0 for _ in range(64)] for _ in range(2)]
+
+# Bitboard utils ------------------------------------------------------- #
+
+# Returns the index of a specific square
+def square_enum(square : str) -> int:
+    return board_squares.index(square)
+
+# Returns the index of black or white
+def color_enum(color : str) -> int:
+    return colors.index(color)
 
 # Returns if a square is occupied or not
-def get_bit(bitboard, square) -> bool:
+def get_bit(bitboard : int, square : int) -> bool:
     return bool(bitboard & (1 << square))
 
-# Returns the updated bitboard with the square set to occupied
-def set_bit(bitboard, square) -> int:
+# Updates a bitboard specific square to occupied
+def set_bit(bitboard : int, square : int ) -> int:
     return bitboard | (1 << square)
 
-# Returns the updated bitboard with the square set to unoccupied (if possibile)
-def clear_bit(bitboard, square) -> int:
-    return bitboard ^ (1 << square) if get_bit(bitboard, square) else bitboard
+# Updates a bitboard specific square to unoccupied
+def clear_bit(bitboard : int, square : int) -> None:
+    bitboard ^ (1 << square) if get_bit(bitboard, square) else bitboard
 
-# Prints the bitboard in a human readable way
-def print_bitboard(bitboard) -> None:
+# Prints the passed bitboard
+def print_bitboard(bitboard : int) -> None:
+    
+    # container for bitboard lines
+    line = ''
+
+    # initial styling newline
     print()
+
     for rank in range(8):
         line = f"{8 - rank}  "
         for file in range(8):
             square = rank * 8 + file
             line += ("1" if get_bit(bitboard, square) else "0") + ' '
         print(line)
+
     print('\n   A B C D E F G H\n')
+
+    print(f"Bitboard: {bitboard}\n")
 
 # ---------------------------------------------------------------------- #
 
-# Entry point
-bitboard = 0
+# Attack generation ---------------------------------------------------- #
 
-bitboard = set_bit(bitboard, board_squares.index("a1"))
-bitboard = set_bit(bitboard, board_squares.index("h8"))
-bitboard = clear_bit(bitboard, board_squares.index("a1"))
+# Returns the possible attacks for a pawn of a certain side in a certain position
+def mask_pawn_attacks(side : int, square : int) -> int:
 
-print_bitboard(bitboard)
+    # result attacks bitboard
+    attacks = 0
+
+    # test container
+    bitboard = 0
+
+    # inserting the piece in the bitboard
+    bitboard = set_bit(bitboard, square)
+
+    # white pawns
+    if not side:
+        if bitboard >> 7 & not_a_file: attacks |= (bitboard >> 7)
+        if bitboard >> 9 & not_h_file: attacks |= (bitboard >> 9)
+    
+    # black pawns
+    else:
+        if bitboard << 7 & not_h_file: attacks |= (bitboard << 7)
+        if bitboard << 9 & not_a_file: attacks |= (bitboard << 9)
+
+    return attacks
+
+# For every square on the board, it calculates the possible (w & b) pawn attacks
+def init_leaper_attacks() -> None:
+
+    # looping over all the squares
+    for i in range(64):
+        pawn_attacks[color_enum('white')][i] = mask_pawn_attacks(color_enum('white'), i)
+        pawn_attacks[color_enum('black')][i] = mask_pawn_attacks(color_enum('black'), i)
+
+# ---------------------------------------------------------------------- #
+
+# Testing
+print('test functions here')
