@@ -45,6 +45,7 @@ not_gh_file = 4557430888798830399 # knight ext.
 # Possible attacks containers
 pawn_attacks = [[0 for _ in range(64)] for _ in range(2)]
 knight_attacks = [0 for _ in range(64)]
+king_attacks = [0 for _ in range(64)]
 
 # Bitboard utils ------------------------------------------------------- #
 
@@ -141,17 +142,87 @@ def mask_knight_attacks(square : int) -> int:
     
     return attacks
 
+# Returns the possible attacks for a king in a certain position
+def mask_king_attacks(square : int) -> int:
+    
+    # result attacks bitboard
+    attacks = 0
+
+    # test container
+    bitboard = 0
+
+    # inserting the piece in the bitboard
+    bitboard = set_bit(bitboard, square)
+
+    # TODO : possible bug here
+    if bitboard >> 1 & not_h_file: 
+        attacks |= (bitboard >> 1)
+        attacks |= (bitboard >> 9)
+        attacks |= (bitboard << 7)
+
+    if bitboard << 1 & not_a_file:
+        attacks |= (bitboard << 1)
+        attacks |= (bitboard << 9)
+        attacks |= (bitboard >> 7)
+        
+    attacks |= (bitboard >> 8)
+    attacks |= (bitboard << 8)
+
+    return attacks
+
+# Returns the possible attacks for a bishop in a certain position
+def mask_bishop_attacks(square : int) -> int:
+    
+    # result attacks bitboard
+    attacks = 0
+
+    # init ranks & files
+    r = f = 0
+
+    # init target rank & files
+    tr = square // 8
+    tf = square % 8
+
+    for r, f in zip(range(tr + 1, 7), range(tf + 1, 7)): attacks |= (1 << (r * 8 + f))
+    for r, f in zip(range(tr - 1, 0, -1), range(tf + 1, 7)): attacks |= (1 << (r * 8 + f))
+    for r, f in zip(range(tr + 1, 7), range(tf - 1, 0, -1)): attacks |= (1 << (r * 8 + f))
+    for r, f in zip(range(tr - 1, 0, -1), range(tf - 1, 0, -1)): attacks |= (1 << (r * 8 + f))
+
+    return attacks
+
+# Returns the possible attacks for a rook in a certain position
+def mask_rook_attacks(square: int) -> int:
+    # result attacks bitboard
+    attacks = 0
+
+    # init target rank & files
+    tr = square // 8
+    tf = square % 8
+
+    # mask relevant rook occupancy bits
+    for r in range(tr + 1, 7): attacks |= (1 << (r * 8 + tf))
+    for r in range(tr - 1, 0, -1): attacks |= (1 << (r * 8 + tf))
+    for f in range(tf + 1, 7): attacks |= (1 << (tr * 8 + f))
+    for f in range(tf - 1, 0, -1): attacks |= (1 << (tr * 8 + f))
+
+    # return attack map
+    return attacks
+
 # For every square on the board, it calculates the possible (w & b) pawn attacks
 def init_leaper_attacks() -> None:
 
-    # looping over all pawns possible positions
+    # pawns
     for i in range(64):
         pawn_attacks[color_enum('white')][i] = mask_pawn_attacks(color_enum('white'), i)
         pawn_attacks[color_enum('black')][i] = mask_pawn_attacks(color_enum('black'), i)
 
-    # looping over all knights possible positions
+    # knights
     for i in range(64):
         knight_attacks[i] = mask_knight_attacks(i)
+
+    # kings
+    for i in range(64):
+        king_attacks[i] = mask_king_attacks(i)
 
 # ---------------------------------------------------------------------- #
 
@@ -160,4 +231,4 @@ def init_leaper_attacks() -> None:
 init_leaper_attacks()
 
 for i in range(64):
-    print_bitboard(knight_attacks[i])
+    print_bitboard(mask_rook_attacks(i))
