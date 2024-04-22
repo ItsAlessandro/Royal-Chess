@@ -2,7 +2,7 @@
 # Royal Chess - A Chess Game in Python
 #
 # Alessandro Duranti, 19 April 2024
-# Latest revision: 19 April 2024
+# Latest revision: 22 April 2024
 #
 # Quick TODO guide for new users:
 # 
@@ -190,6 +190,41 @@ def mask_bishop_attacks(square : int) -> int:
 
     return attacks
 
+# Bishop fly attacks
+def bishop_fly_attacks(square: int, block : int) -> int:
+    # result attacks bitboard
+    attacks = 0
+
+    # init ranks & files
+    r = f = 0
+
+    # init target rank & files
+    tr = square // 8
+    tf = square % 8
+
+    # generate bishop attacks
+    for r, f in zip(range(tr + 1, 8), range(tf + 1, 8)):
+        attacks |= (1 << (r * 8 + f))
+        if (1 << (r * 8 + f)) & block:
+            break
+
+    for r, f in zip(range(tr - 1, -1, -1), range(tf + 1, 8)):
+        attacks |= (1 << (r * 8 + f))
+        if (1 << (r * 8 + f)) & block:
+            break
+
+    for r, f in zip(range(tr + 1, 8), range(tf - 1, -1, -1)):
+        attacks |= (1 << (r * 8 + f))
+        if (1 << (r * 8 + f)) & block:
+            break
+
+    for r, f in zip(range(tr - 1, -1, -1), range(tf - 1, -1, -1)):
+        attacks |= (1 << (r * 8 + f))
+        if (1 << (r * 8 + f)) & block:
+            break
+
+    return attacks
+
 # Returns the possible attacks for a rook in a certain position
 def mask_rook_attacks(square: int) -> int:
     # result attacks bitboard
@@ -206,6 +241,40 @@ def mask_rook_attacks(square: int) -> int:
     for f in range(tf - 1, 0, -1): attacks |= (1 << (tr * 8 + f))
 
     # return attack map
+    return attacks
+
+# Rook fly attacks
+def rook_fly_attacks(square: int, block : int) -> int:
+    # result attacks bitboard
+    attacks = 0
+
+    # init ranks & files
+    r = f = 0
+
+    # init target rank & files
+    tr = square // 8
+    tf = square % 8
+
+    for r in range(tr + 1, 8):
+        attacks |= (1 << (r * 8 + tf))
+        if (1 << (r * 8 + tf)) & block:
+            break
+
+    for r in range(tr - 1, -1, -1):
+        attacks |= (1 << (r * 8 + tf))
+        if (1 << (r * 8 + tf)) & block:
+            break
+
+    for f in range(tf + 1, 8):
+        attacks |= (1 << (tr * 8 + f))
+        if (1 << (tr * 8 + f)) & block:
+            break
+
+    for f in range(tf - 1, -1, -1):
+        attacks |= (1 << (tr * 8 + f))
+        if (1 << (tr * 8 + f)) & block:
+            break
+
     return attacks
 
 # For every square on the board, it calculates the possible (w & b) pawn attacks
@@ -230,5 +299,6 @@ def init_leaper_attacks() -> None:
 
 init_leaper_attacks()
 
-for i in range(64):
-    print_bitboard(mask_rook_attacks(i))
+bitboard = 0
+bitboard = set_bit(bitboard, square_enum('b6'))
+print_bitboard(bishop_fly_attacks(square_enum('e3'), bitboard))
