@@ -2,7 +2,7 @@
 # Royal Chess - A Chess Game in Python
 #
 # Alessandro Duranti, 19 April 2024
-# Latest revision: 22 April 2024
+# Latest revision: 29 April 2024
 #
 # Quick TODO guide for new users:
 # 
@@ -16,6 +16,10 @@
 # 
 # Enjoy Royal Chess!
 # ---------------------------------------------------------------------- #
+
+# Imports 
+
+from constants import ROOK_MAGICS, BISHOP_MAGICS
 
 # Constants & Globals
 
@@ -36,16 +40,55 @@ colors = [
     "white", "black"
 ]
 
+# Slider pieces flags
+sliders = [
+    'rook', 'bishop'
+]
+
 # Banned files for pawn and knight attacks
 not_a_file = 18374403900871474942 # pawns & knights
 not_h_file = 9187201950435737471 # pawns & knights
 not_ab_file = 18229723555195321596 # knight ext.
 not_gh_file = 4557430888798830399 # knight ext.
 
+# relevant occupancy bit count
+bishop_relevant_bits = [
+    6, 5, 5, 5, 5, 5, 5, 6, 
+    5, 5, 5, 5, 5, 5, 5, 5, 
+    5, 5, 7, 7, 7, 7, 5, 5, 
+    5, 5, 7, 9, 9, 7, 5, 5, 
+    5, 5, 7, 9, 9, 7, 5, 5, 
+    5, 5, 7, 7, 7, 7, 5, 5, 
+    5, 5, 5, 5, 5, 5, 5, 5, 
+    6, 5, 5, 5, 5, 5, 5, 6
+]
+rook_relevant_bits = [
+    12, 11, 11, 11, 11, 11, 11, 12, 
+    11, 10, 10, 10, 10, 10, 10, 11, 
+    11, 10, 10, 10, 10, 10, 10, 11, 
+    11, 10, 10, 10, 10, 10, 10, 11, 
+    11, 10, 10, 10, 10, 10, 10, 11, 
+    11, 10, 10, 10, 10, 10, 10, 11, 
+    11, 10, 10, 10, 10, 10, 10, 11, 
+    12, 11, 11, 11, 11, 11, 11, 12,
+]
+
 # Possible attacks containers
 pawn_attacks = [[0 for _ in range(64)] for _ in range(2)]
 knight_attacks = [0 for _ in range(64)]
 king_attacks = [0 for _ in range(64)]
+
+# Bishop attack masks
+bishop_masks = [0 for _ in range(64)]
+
+# Rooke attack masks
+rook_masks = [0 for _ in range(64)]
+
+# Bishops attack table
+bishop_attacks = [[0 for _ in range(512)] for _ in range(64)]
+
+# Rook attack table
+rook_attacks = [[0 for _ in range(4096)] for _ in range(64)]
 
 # Bitboard utils ------------------------------------------------------- #
 
@@ -57,6 +100,10 @@ def square_enum(square : str) -> int:
 def color_enum(color : str) -> int:
     return colors.index(color)
 
+# Returns the index of a specific piece (rook or bishop)
+def piece_enum(piece : str) -> int:
+    return sliders.index(piece)
+
 # Returns if a square is occupied or not
 def get_bit(bitboard : int, square : int) -> bool:
     return bool(bitboard & (1 << square))
@@ -67,7 +114,35 @@ def set_bit(bitboard : int, square : int ) -> int:
 
 # Updates a bitboard specific square to unoccupied
 def clear_bit(bitboard : int, square : int) -> None:
-    bitboard ^ (1 << square) if get_bit(bitboard, square) else bitboard
+    return bitboard ^ (1 << square) if get_bit(bitboard, square) else bitboard
+
+# Count bits in a bitboard
+def count_bits(bitboard : int) -> int:
+
+    # counter
+    count = 0
+
+    # reset least significant bit (while exists)
+    while bitboard:
+        bitboard &= bitboard - 1
+        count += 1
+
+    # returning the number of bits
+    return count
+
+# Returns the least significant 1 bit index
+def get_ls1b_index(bitboard : int) -> int:
+    
+    # make sure bitboard is not 0
+    if bitboard:
+
+        # count trailing bits before LS1B
+        return count_bits((bitboard & -bitboard) - 1)
+    
+    else:
+
+        # return illegal index
+        return -1
 
 # Prints the passed bitboard
 def print_bitboard(bitboard : int) -> None:
@@ -293,12 +368,239 @@ def init_leaper_attacks() -> None:
     for i in range(64):
         king_attacks[i] = mask_king_attacks(i)
 
+# set occupancies
+def set_occupancy(index : int, bits_in_mask : int, attack_mask : int) -> int:
+
+    # occupancy map
+    occupancy = 0
+
+    # loop over range of bits in mask
+    for count in range(bits_in_mask):
+
+        # get LS1B index
+        square = get_ls1b_index(attack_mask)
+
+        # pop LS1B
+        attack_mask = clear_bit(attack_mask, square)
+        
+        # if occupancy bit is set
+        if index & (1 << count):
+
+            # set bit in occupancy map
+            occupancy |= (1 << square)
+
+    # return occupancy map
+    return occupancy
+
 # ---------------------------------------------------------------------- #
 
-# Testing
+# Random number generator ---------------------------------------------- #
+
+# pseudo number state
+random_state = 1804289383
+
+# generate 32 bits random number
+def get_random_U32_number() -> int:
+
+    # global declaration
+    global random_state
+
+    # get current state
+    number = random_state
+
+    # XOR shift algorithm
+    number ^= (number << 13) & 0xFFFFFFFF
+    number ^= number >> 17
+    number ^= (number << 5) & 0xFFFFFFFF
+
+    # update state
+    random_state = number
+
+    # return random number
+    return number
+
+# generate 64 bits random number
+def get_random_U64_number() -> int:
+    
+    # define 4 random numbers
+    a = b = c = d = 0
+
+    # init random numbers
+    a = get_random_U32_number() & 0xFFFF
+    b = get_random_U32_number() & 0xFFFF
+    c = get_random_U32_number() & 0xFFFF
+    d = get_random_U32_number() & 0xFFFF
+    
+    # return 64 bits random number
+    return a | (b << 16) | (c << 32) | (d << 48)
+
+# generate magic number candidates
+def generate_magic_number() -> int:
+    return get_random_U64_number() & get_random_U64_number() & get_random_U64_number()
+
+# ---------------------------------------------------------------------- #
+
+# Magic bitboards ------------------------------------------------------ #
+
+# find appropriate magic number
+def find_magic_number(square : int, relevant_bits : int, bishop : int) -> int:
+
+    # init occupancies
+    occupancies = [0 for _ in range(4096)]
+
+    # init attacks
+    attacks = [0 for _ in range(4096)]
+
+    # init used attacks
+    used_attacks = [0 for _ in range(4096)]
+
+    # init attack mask for current piece
+    attack_mask = mask_bishop_attacks(square) if bishop else mask_rook_attacks(square)
+
+    # init occupancy indices
+    occupancy_indices = 1 << relevant_bits
+
+    # loop over occupancy indices
+    for index in range(occupancy_indices):
+
+        # init occupancies
+        occupancies[index] = set_occupancy(index, relevant_bits, attack_mask)
+
+        # init attacks
+        attacks[index] = bishop_fly_attacks(square, occupancies[index]) if bishop else rook_fly_attacks(square, occupancies[index])
+
+    # testing
+    for random_count in range(10000):
+
+        # generate magic candidate
+        magic_number = generate_magic_number()
+
+        # skip if magic number is not valid
+        if count_bits((attack_mask * magic_number) & 0xFF00000000000000) < 6: continue
+
+        used_attacks = [0] * len(used_attacks)
+
+        # init index & fail flag
+        fail = 0
+
+        # test magic index loop
+        for index in range(occupancy_indices):
+
+            # fail flag check
+            if fail: break
+
+            # init magic index
+            magic_index = ((occupancies[index] * magic_number) & 0xffffffffffffffff) >> (64 - relevant_bits)
+
+            # if magic index works
+            if used_attacks[magic_index] == 0:
+
+                # init used attacks
+                used_attacks[magic_index] = attacks[index]
+
+            elif used_attacks[magic_index] != attacks[index]:
+                
+                # magic index does not work
+                fail = 1
+        
+        # if magic number is valid returns it
+        if not fail:
+            return magic_number
+
+    return 0
+
+# init magic numbers
+def init_magic_numbers() -> None:
+
+    # loop over all squares
+    for square in range(64):
+
+        # init rook magic numbers
+        result = find_magic_number(square, bishop_relevant_bits[square], piece_enum('bishop'))
+
+        if result != 0:
+            print(f'0x{format(result, "016X")}')
+
+
+
+# init slider pieces attack tables
+def init_sliders_attacks (bishop : int) -> None:
+
+    # loop over all squares
+    for square in range(64):
+        
+        # init bishop and rook masks
+        bishop_masks[square] = mask_bishop_attacks(square)
+        rook_masks[square] = mask_rook_attacks(square)
+
+        # init current mask
+        attack_mask = bishop_masks[square] if bishop else rook_masks[square]
+
+        # init relevant bits
+        relevant_bits_count = count_bits(attack_mask)
+
+        # init occupancy indices
+        occupancy_indices = 1 << relevant_bits_count
+
+        # loop over occupancy indices
+        for index in range(occupancy_indices):
+
+            # bishop
+            if bishop:
+
+                # init current occupancy variation
+                occupancy = set_occupancy(index, relevant_bits_count, attack_mask)
+
+                # init magic index
+                magic_index = ((occupancy * BISHOP_MAGICS[square]) & 0xFFFFFFFFFFFFFFFF) >> (64 - bishop_relevant_bits[square])
+
+                # init bishop attacks
+                bishop_attacks[square][magic_index] = bishop_fly_attacks(square, occupancy)
+
+            # rook
+            else:
+                
+                # init current occupancy variation
+                occupancy = set_occupancy(index, relevant_bits_count, attack_mask)
+
+                # init magic index
+                magic_index = ((occupancy * ROOK_MAGICS[square]) & 0xFFFFFFFFFFFFFFFF) >> (64 - rook_relevant_bits[square])
+
+                # init rook attacks
+                rook_attacks[square][magic_index] = rook_fly_attacks(square, occupancy)
+
+# get bishop attacks
+def get_bishop_attacks(square : int, occupancy : int) -> int:
+
+    # get bishop attacks assuming current board occupancy
+    occupancy &= bishop_masks[square]
+    occupancy *= BISHOP_MAGICS[square]
+    occupancy >>= (64 - bishop_relevant_bits[square]) 
+
+    print(occupancy & 0x2000000000000000)
+    return bishop_attacks[square][occupancy]
+
+# get rook attacks
+def get_rook_attacks(square : int, occupancy : int) -> int:
+
+    # get rook attacks assuming current board occupancy
+    occupancy &= rook_masks[square]
+    occupancy *= ROOK_MAGICS[square]
+    occupancy >>= 64 - rook_relevant_bits[square]
+
+    return rook_attacks[square][occupancy]
+
+# ---------------------------------------------------------------------- #
+
+# Main driver
 
 init_leaper_attacks()
 
-bitboard = 0
-bitboard = set_bit(bitboard, square_enum('b6'))
-print_bitboard(bishop_fly_attacks(square_enum('e3'), bitboard))
+init_sliders_attacks(piece_enum('bishop'))
+init_sliders_attacks(piece_enum('rook'))
+
+occupancy = 0
+occupancy = set_bit(occupancy, square_enum('c5'))
+
+print_bitboard(get_bishop_attacks(square_enum('d4'), occupancy))
+
