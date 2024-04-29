@@ -574,33 +574,38 @@ def get_bishop_attacks(square : int, occupancy : int) -> int:
 
     # get bishop attacks assuming current board occupancy
     occupancy &= bishop_masks[square]
-    occupancy *= BISHOP_MAGICS[square]
+    occupancy = (occupancy * BISHOP_MAGICS[square]) & 0xFFFFFFFFFFFFFFFF
     occupancy >>= (64 - bishop_relevant_bits[square]) 
 
-    print(occupancy & 0x2000000000000000)
-    return bishop_attacks[square][occupancy]
+    return bishop_attacks[square][occupancy & len(bishop_attacks[square]) - 1]
 
 # get rook attacks
 def get_rook_attacks(square : int, occupancy : int) -> int:
 
     # get rook attacks assuming current board occupancy
     occupancy &= rook_masks[square]
-    occupancy *= ROOK_MAGICS[square]
+    occupancy = (occupancy * ROOK_MAGICS[square]) & 0xFFFFFFFFFFFFFFFF
     occupancy >>= 64 - rook_relevant_bits[square]
 
-    return rook_attacks[square][occupancy]
+    return rook_attacks[square][occupancy & len(rook_attacks[square]) - 1]
 
 # ---------------------------------------------------------------------- #
 
-# Main driver
-
+# Leaper attacks initializer
 init_leaper_attacks()
 
+# Attack initializers
 init_sliders_attacks(piece_enum('bishop'))
 init_sliders_attacks(piece_enum('rook'))
 
+# Test bitboard
 occupancy = 0
-occupancy = set_bit(occupancy, square_enum('c5'))
 
-print_bitboard(get_bishop_attacks(square_enum('d4'), occupancy))
+# Set blocker pieces
+occupancy = set_bit(occupancy, square_enum('g7'))
 
+# Print occupancy
+print_bitboard(occupancy)
+
+# Print bishop attacks
+print_bitboard(get_rook_attacks(square_enum('c7'), occupancy)) 
