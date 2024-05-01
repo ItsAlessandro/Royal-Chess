@@ -17,11 +17,22 @@
 # Enjoy Royal Chess!
 # ---------------------------------------------------------------------- #
 
+# TODO : for the refactored version of the engine
+# TODO : fix magic numbers generation (optional)
+# TODO : macros & enums functions on top (essential)
+
 # Imports 
 
 from constants import ROOK_MAGICS, BISHOP_MAGICS
 
 # Constants & Globals
+
+# FEN strings
+empty_board = "8/8/8/8/8/8/8/8 w - - "
+start_position = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 "
+tricky_position = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQq - 0 1 "
+killer_position = "rnbqkb1r/pp1p1pPp/8/2p1pP2/1P1P4/3P3P/P1P1P3/RNBQKBNR b KQkq h1 0 1"
+cmk_position = "r2q1rk1/ppp2ppp/2n1bn2/2b1p3/3pP3/3P1NPP/PPP1NPB1/R1BQ1RK1 b q - 0 9 "
 
 # Representation of the chess board, human readable way
 board_squares = [
@@ -32,18 +43,61 @@ board_squares = [
   "a4", "b4", "c4", "d4", "e4", "f4", "g4", "h4",
   "a3", "b3", "c3", "d3", "e3", "f3", "g3", "h3",
   "a2", "b2", "c2", "d2", "e2", "f2", "g2", "h2",
-  "a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1"
+  "a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1", "no_sq"
 ]
 
 # Colors, sides to move
 colors = [
-    "white", "black"
+    "white", "black", "both"
 ]
 
 # Slider pieces flags
 sliders = [
     'rook', 'bishop'
 ]
+
+# Castling bits
+castle_flags = {
+    'wk': 1, # 0001
+    'wq': 2, # 0010
+    'bk': 4, # 0100
+    'bq': 8  # 1000
+}
+
+# Encode pieces
+pieces = [
+    'P', 'N', 'B', 'R', 'Q', 'K', 'p', 'n', 'b', 'r', 'q', 'k'
+]
+
+# ASCII pieces
+ascii_pieces = {
+    'P': '♙', 'N': '♘', 'B': '♗', 'R': '♖', 'Q': '♕', 'K': '♔',
+    'p': '♟', 'n': '♞', 'b': '♝', 'r': '♜', 'q': '♛', 'k': '♚'
+}
+
+# Define bitboards
+bitboards = [0 for _ in range(12)]
+
+# Define occupancies
+occupancies = [0 for _ in range(3)] # white, black, both
+
+# Python way TODO : use a class to fix this mess (in python is not possible to modify in functions primitive dt)
+current_props = [0, board_squares.index('no_sq'), 0] # side, enpassant, castle
+
+"""
+# ORIGINAL WAY: ------------------------------------------------------- #
+
+# Side to move
+side = 0
+
+# Enpassant square
+enpassant = board_squares.index('no_sq')
+
+# Castling rights
+castle = 0
+
+# ---------------------------------------------------------------------- #
+"""
 
 # Banned files for pawn and knight attacks
 not_a_file = 18374403900871474942 # pawns & knights
@@ -92,6 +146,10 @@ rook_attacks = [[0 for _ in range(4096)] for _ in range(64)]
 
 # Bitboard utils ------------------------------------------------------- #
 
+# Returns the index of a specific piece
+def piece_enum(piece : str) -> int:
+    return pieces.index(piece)
+
 # Returns the index of a specific square
 def square_enum(square : str) -> int:
     return board_squares.index(square)
@@ -100,8 +158,8 @@ def square_enum(square : str) -> int:
 def color_enum(color : str) -> int:
     return colors.index(color)
 
-# Returns the index of a specific piece (rook or bishop)
-def piece_enum(piece : str) -> int:
+# Returns the index of a specific piece (rook or bishop) # TODO NAMING PROBLEM HERE
+def slider_enum(piece : str) -> int:
     return sliders.index(piece)
 
 # Returns if a square is occupied or not
@@ -163,6 +221,129 @@ def print_bitboard(bitboard : int) -> None:
     print('\n   A B C D E F G H\n')
 
     print(f"Bitboard: {bitboard}\n")
+
+def print_board() -> None:
+    
+    # container for bitboard lines
+    line = ''
+
+    # initial styling newline
+    print()
+
+    for rank in range(8):
+        line = f"{8 - rank}  "
+        for file in range(8):
+            square = rank * 8 + file
+            piece = ' '
+            for i in range(12):
+                if get_bit(bitboards[i], square):
+                    piece = ascii_pieces[pieces[i]]
+                    break
+
+            line += (piece if piece != ' ' else '.') + ' '
+        print(line)
+
+    print('\n   A B C D E F G H\n')
+
+    # side to move
+    print(f"Side to move: {colors[color_enum('black')] if current_props[0] else colors[color_enum('white')]}\n")
+
+    # enpassant TODO : fix this
+    print(f"Enpassant: {board_squares[square_enum(current_props[1])] if current_props[1] != square_enum('no_sq') else 'no'}\n")
+
+    # castling rights
+    print(f'Castling: {"K" if current_props[2] & castle_flags["wk"] else "-"}{"Q" if current_props[2] & castle_flags["wq"] else "-"}{"k" if current_props[2] & castle_flags["bk"] else "-"}{"q" if current_props[2] & castle_flags["bq"] else "-"}\n')
+
+# parse FEN strings
+def parse_fen(fen : str) -> None:
+
+    # reset boards
+    for i in range(12): bitboards[i] = 0
+    for i in range(3): occupancies[i] = 0
+
+    print(fen)
+
+    # reset state
+    for i in range(3): 
+        if i == 1: current_props[i] = 'no_sq'
+        else: current_props[i] = 0
+
+    # index utilized to iterate over the FEN string
+    fen_index = 0
+
+    # loop over FEN string
+
+    rank = 0
+    while rank < 8:
+
+        file = 0
+        while file < 8:
+
+            square = rank * 8 + file
+            piece = fen[fen_index]
+
+            if piece.isnumeric() or piece == '/' or piece == ' ':
+                if piece.isnumeric():
+                    file += (int(piece) - 1)
+
+                elif piece == '/':
+                    fen_index += 1
+                    rank += 1
+                    break
+
+                else:
+                    rank = 8
+                    break
+
+            else:
+                piece_index = piece_enum(piece)
+                bitboards[piece_index] = set_bit(bitboards[piece_index], square)
+
+            file += 1
+            fen_index += 1
+    
+    # jumping over the space
+    fen_index += 1
+
+    # side to move
+    current_props[0] = color_enum('white') if fen[fen_index] == 'w' else color_enum('black')
+
+    # jumping over the space
+    fen_index += 2
+
+    # castling parse
+    while fen[fen_index] != ' ':
+        if fen[fen_index] == 'K': current_props[2] |= castle_flags['wk']
+        if fen[fen_index] == 'Q': current_props[2] |= castle_flags['wq']
+        if fen[fen_index] == 'k': current_props[2] |= castle_flags['bk']
+        if fen[fen_index] == 'q': current_props[2] |= castle_flags['bq']
+        if fen[fen_index] == '-': break
+
+        print(current_props[2])
+
+        fen_index += 1
+
+    # jumping over the spaces
+    while fen[fen_index] == ' ':
+        fen_index += 1
+
+    # enpassant square
+    if fen[fen_index] != '-':
+        current_props[1] = f'{fen[fen_index]}{fen[fen_index + 1]}'
+    else:
+        current_props[1] = square_enum('no_sq')
+
+    # loop over white pieces
+    for i in range(6):
+        occupancies[color_enum('white')] |= bitboards[i]
+    
+    # loop over black pieces
+    for i in range(6, 12):
+        occupancies[color_enum('black')] |= bitboards[i]
+
+    # loop over both colors
+    occupancies[color_enum('both')] = occupancies[color_enum('white')] | occupancies[color_enum('black')]
+    
 
 # ---------------------------------------------------------------------- #
 
@@ -516,7 +697,7 @@ def init_magic_numbers() -> None:
     for square in range(64):
 
         # init rook magic numbers
-        result = find_magic_number(square, bishop_relevant_bits[square], piece_enum('bishop'))
+        result = find_magic_number(square, bishop_relevant_bits[square], slider_enum('bishop'))
 
         if result != 0:
             print(f'0x{format(result, "016X")}')
@@ -589,23 +770,52 @@ def get_rook_attacks(square : int, occupancy : int) -> int:
 
     return rook_attacks[square][occupancy & len(rook_attacks[square]) - 1]
 
+# get queen attacks
+def get_queen_attacks(square : int, occupancy : int) -> int:
+
+    # init result attacks
+    queen_attacks = 0
+
+    # init bishop occupancies
+    bishop_occupancy = occupancy
+    # print_bitboard(f'Initial occupancy: {occupancy}')
+
+    # init rook occupancies
+    rook_occupancy = occupancy
+
+    # get bishop attacks assuming current board occupancy
+    bishop_occupancy &= bishop_masks[square]
+    bishop_occupancy = (bishop_occupancy * BISHOP_MAGICS[square]) & 0xFFFFFFFFFFFFFFFF
+    bishop_occupancy >>= 64 - bishop_relevant_bits[square]
+
+    # get bishop attacks
+    queen_attacks = bishop_attacks[square][bishop_occupancy]
+
+    # get rook attacks assuming current board occupancy
+    rook_occupancy &= rook_masks[square]
+    rook_occupancy = (rook_occupancy * ROOK_MAGICS[square]) & 0xFFFFFFFFFFFFFFFF
+    rook_occupancy >>= 64 - rook_relevant_bits[square]
+
+    # get rook attacks
+    queen_attacks |= rook_attacks[square][rook_occupancy]
+
+    # return queen attacks
+    return queen_attacks
+
 # ---------------------------------------------------------------------- #
 
 # Leaper attacks initializer
 init_leaper_attacks()
 
 # Attack initializers
-init_sliders_attacks(piece_enum('bishop'))
-init_sliders_attacks(piece_enum('rook'))
+init_sliders_attacks(slider_enum('bishop'))
+init_sliders_attacks(slider_enum('rook'))
 
-# Test bitboard
+# init occupancy bitboard
 occupancy = 0
 
-# Set blocker pieces
-occupancy = set_bit(occupancy, square_enum('g7'))
+occupancy = set_bit(occupancy, square_enum('b6'))
+occupancy = set_bit(occupancy, square_enum('d6'))
 
-# Print occupancy
-print_bitboard(occupancy)
-
-# Print bishop attacks
-print_bitboard(get_rook_attacks(square_enum('c7'), occupancy)) 
+# get queen attacks
+print_bitboard(get_queen_attacks(square_enum('d4'), occupancy))
