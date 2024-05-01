@@ -261,8 +261,6 @@ def parse_fen(fen : str) -> None:
     for i in range(12): bitboards[i] = 0
     for i in range(3): occupancies[i] = 0
 
-    print(fen)
-
     # reset state
     for i in range(3): 
         if i == 1: current_props[i] = 'no_sq'
@@ -318,8 +316,6 @@ def parse_fen(fen : str) -> None:
         if fen[fen_index] == 'k': current_props[2] |= castle_flags['bk']
         if fen[fen_index] == 'q': current_props[2] |= castle_flags['bq']
         if fen[fen_index] == '-': break
-
-        print(current_props[2])
 
         fen_index += 1
 
@@ -802,6 +798,50 @@ def get_queen_attacks(square : int, occupancy : int) -> int:
     # return queen attacks
     return queen_attacks
 
+# is square attacked by the opposite color of "side"
+def is_square_attacked(square : int, side : int) -> bool:
+
+    if side == color_enum('white') and (pawn_attacks[color_enum('black')][square] & bitboards[piece_enum('P')]): return True
+
+    if side == color_enum('black') and (pawn_attacks[color_enum('white')][square] & bitboards[piece_enum('p')]): return True
+
+        # attacked by knights
+    if knight_attacks[square] & (bitboards[piece_enum('N')] if side == color_enum('white') else bitboards[piece_enum('n')]): return True
+
+    # attacked by bishops
+    if get_bishop_attacks(square, occupancies[color_enum('both')]) & (bitboards[piece_enum('B')] if side == color_enum('white') else bitboards[piece_enum('b')]): return True
+
+    # attacked by rooks
+    if get_rook_attacks(square, occupancies[color_enum('both')]) & (bitboards[piece_enum('R')] if side == color_enum('white') else bitboards[piece_enum('r')]): return True
+
+    # attacked by queens
+    if get_queen_attacks(square, occupancies[color_enum('both')]) & (bitboards[piece_enum('Q')] if side == color_enum('white') else bitboards[piece_enum('q')]): return True
+
+    # attacked by kings
+    if king_attacks[square] & (bitboards[piece_enum('K')] if side == color_enum('white') else bitboards[piece_enum('k')]): return True
+
+    # by default return false
+    return False
+
+# print attacked squares
+def print_attacked_squares(side):
+
+    # container for bitboard lines
+    line = ''
+
+    # initial styling newline
+    print()
+
+    for rank in range(8):
+        line = f"{8 - rank}  "
+        for file in range(8):
+            square = rank * 8 + file
+            line += f"{1 if is_square_attacked(square, side) else 0} "
+        
+        print(line)
+
+    print('\n   A B C D E F G H\n')
+
 # ---------------------------------------------------------------------- #
 
 # Leaper attacks initializer
@@ -811,11 +851,8 @@ init_leaper_attacks()
 init_sliders_attacks(slider_enum('bishop'))
 init_sliders_attacks(slider_enum('rook'))
 
-# init occupancy bitboard
-occupancy = 0
+parse_fen(tricky_position)
+print_board()
 
-occupancy = set_bit(occupancy, square_enum('b6'))
-occupancy = set_bit(occupancy, square_enum('d6'))
-
-# get queen attacks
-print_bitboard(get_queen_attacks(square_enum('d4'), occupancy))
+# print who attacks
+print_attacked_squares(color_enum('white'))
