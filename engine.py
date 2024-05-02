@@ -2,7 +2,7 @@
 # Royal Chess - A Chess Game in Python
 #
 # Alessandro Duranti, 19 April 2024
-# Latest revision: 29 April 2024
+# Latest revision: 02 May 2024
 #
 # Quick TODO guide for new users:
 # 
@@ -20,6 +20,8 @@
 # TODO : for the refactored version of the engine
 # TODO : fix magic numbers generation (optional)
 # TODO : macros & enums functions on top (essential)
+# TODO : try "global" variable
+# TODO : clear_bit() --> pop_bit() (rename)
 
 # Imports 
 
@@ -340,6 +342,24 @@ def parse_fen(fen : str) -> None:
     # loop over both colors
     occupancies[color_enum('both')] = occupancies[color_enum('white')] | occupancies[color_enum('black')]
     
+# print attacked squares
+def print_attacked_squares(side):
+
+    # container for bitboard lines
+    line = ''
+
+    # initial styling newline
+    print()
+
+    for rank in range(8):
+        line = f"{8 - rank}  "
+        for file in range(8):
+            square = rank * 8 + file
+            line += f"{1 if is_square_attacked(square, side) else 0} "
+        
+        print(line)
+
+    print('\n   A B C D E F G H\n')
 
 # ---------------------------------------------------------------------- #
 
@@ -798,6 +818,10 @@ def get_queen_attacks(square : int, occupancy : int) -> int:
     # return queen attacks
     return queen_attacks
 
+# ---------------------------------------------------------------------- #
+
+# Move generation ------------------------------------------------------ #
+
 # is square attacked by the opposite color of "side"
 def is_square_attacked(square : int, side : int) -> bool:
 
@@ -823,24 +847,165 @@ def is_square_attacked(square : int, side : int) -> bool:
     # by default return false
     return False
 
-# print attacked squares
-def print_attacked_squares(side):
+# generate all moves
+def generate_moves() -> None:
 
-    # container for bitboard lines
-    line = ''
+    # define source and target squares
+    source_square = target_square = 0
 
-    # initial styling newline
-    print()
+    # define current pieces & its attacks
+    bitboard = attacks = 0
 
-    for rank in range(8):
-        line = f"{8 - rank}  "
-        for file in range(8):
-            square = rank * 8 + file
-            line += f"{1 if is_square_attacked(square, side) else 0} "
-        
-        print(line)
+    # loop over all the bitboards
+    for i in range(12):
 
-    print('\n   A B C D E F G H\n')
+        # get current piece bitboard
+        bitboard = bitboards[i]
+
+        # generate white pawn & white king castling
+        if current_props[0] == color_enum('white'):
+            
+            # pick up white pawn bitboard
+            if i == piece_enum('P'):
+                
+                # loop over white pawn bitboard
+                while bitboard:
+
+                    # init source square
+                    source_square = get_ls1b_index(bitboard)
+
+                    # init target square 
+                    target_square = source_square - 8
+
+                    # generate quite pawn moves
+                    if (not (target_square < square_enum('a8'))) and (not get_bit(occupancies[color_enum('both')], target_square)):
+
+                        # pawn promotion
+                        if source_square >= square_enum('a7') and source_square <= square_enum('h7'):
+                            print(f'pawn promotion: {board_squares[source_square]} to {board_squares[target_square]}')
+
+                        else:
+
+                            # one square ahead pawn
+                            print(f'pawn push: {board_squares[source_square]} to {board_squares[target_square]}')
+                            
+                            # double square ahead pawn
+                            if (source_square >= square_enum('a2') and source_square <= square_enum('h2')) and not get_bit(occupancies[color_enum('both')], target_square - 8):
+                                print(f'pawn double push: {board_squares[source_square]} to {board_squares[target_square - 8]}')
+
+                    # init pawn attacks
+                    attacks = pawn_attacks[color_enum('white')][source_square] & occupancies[color_enum('black')]
+
+                    # pawn capture moves
+                    while attacks:
+
+                        # init target square
+                        target_square = get_ls1b_index(attacks)
+
+                        # pawn promotion
+                        if source_square >= square_enum('a7') and source_square <= square_enum('h7'):
+                            print(f'pawn capture promotion: {board_squares[source_square]} to {board_squares[target_square]}')
+
+                        else:
+                            # pawn capture
+                            print(f'pawn capture: {board_squares[source_square]} to {board_squares[target_square]}')
+                        
+                        # pop ls1b from attacks copy
+                        attacks = clear_bit(attacks, target_square)
+
+                    # generate enpassant captures
+                    if current_props[1] != square_enum('no_sq'):
+
+                        # lookup pawn attacks and & with enpassant square
+                        enpassant_attacks = pawn_attacks[color_enum('white')][source_square] & (1 << square_enum(current_props[1]))
+
+                        # if enpassant capture avaiable 
+                        if enpassant_attacks:
+
+                            # init enpassant capture target square
+                            target_enpassant = get_ls1b_index(enpassant_attacks)
+                            print(f'enpassant capture: {board_squares[source_square]} to {board_squares[target_enpassant]}')
+
+
+                    # pop ls1b from bitboard copy
+                    bitboard = clear_bit(bitboard, source_square)
+
+        # generate black pawn & black king castling
+        else:
+            
+            # pick up black pawn bitboard
+            if i == piece_enum('p'):
+
+                # loop over black pawn bitboard
+                while bitboard:
+
+                    # init source square
+                    source_square = get_ls1b_index(bitboard)
+
+                    # init target square 
+                    target_square = source_square + 8
+
+                    # generate quite pawn moves
+                    if (not (target_square > square_enum('h1'))) and (not get_bit(occupancies[color_enum('both')], target_square)):
+
+                        # pawn promotion
+                        if source_square >= square_enum('a2') and source_square <= square_enum('h2'):
+                            print(f'pawn promotion: {board_squares[source_square]} to {board_squares[target_square]}')
+
+                        else:
+
+                            # one square ahead pawn
+                            print(f'pawn push: {board_squares[source_square]} to {board_squares[target_square]}')
+                            
+                            # double square ahead pawn
+                            if (source_square >= square_enum('a7') and source_square <= square_enum('h7')) and not get_bit(occupancies[color_enum('both')], target_square + 8):
+                                print(f'pawn double push: {board_squares[source_square]} to {board_squares[target_square + 8]}')
+
+                    # init pawn attacks
+                    attacks = pawn_attacks[color_enum('black')][source_square] & occupancies[color_enum('white')]
+
+                    # pawn capture moves
+                    while attacks:
+
+                        # init target square
+                        target_square = get_ls1b_index(attacks)
+
+                        # pawn promotion
+                        if source_square >= square_enum('a2') and source_square <= square_enum('h2'):
+                            print(f'pawn capture promotion: {board_squares[source_square]} to {board_squares[target_square]}')
+
+                        else:
+                            # pawn capture
+                            print(f'pawn capture: {board_squares[source_square]} to {board_squares[target_square]}')
+                        
+                        # pop ls1b from attacks copy
+                        attacks = clear_bit(attacks, target_square)
+
+                    # generate enpassant captures
+                    if current_props[1] != square_enum('no_sq'):
+
+                        # lookup pawn attacks and & with enpassant square
+                        enpassant_attacks = pawn_attacks[color_enum('black')][source_square] & (1 << square_enum(current_props[1]))
+
+                        # if enpassant capture avaiable 
+                        if enpassant_attacks:
+
+                            # init enpassant capture target square
+                            target_enpassant = get_ls1b_index(enpassant_attacks)
+                            print(f'enpassant capture: {board_squares[source_square]} to {board_squares[target_enpassant]}')
+
+                    # pop ls1b from bitboard copy
+                    bitboard = clear_bit(bitboard, source_square)
+
+        # generate knight moves
+
+        # generate bishop moves
+
+        # generate rook moves
+
+        # generate queen moves
+
+        # generate king moves
 
 # ---------------------------------------------------------------------- #
 
@@ -851,8 +1016,7 @@ init_leaper_attacks()
 init_sliders_attacks(slider_enum('bishop'))
 init_sliders_attacks(slider_enum('rook'))
 
-parse_fen(tricky_position)
+parse_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/Pp2P3/2N2Q1p/1PPBBPpP/R3K2R b KQkq a3 0 1 ")
 print_board()
 
-# print who attacks
-print_attacked_squares(color_enum('white'))
+generate_moves()
