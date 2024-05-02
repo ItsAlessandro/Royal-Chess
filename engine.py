@@ -32,7 +32,7 @@ from constants import ROOK_MAGICS, BISHOP_MAGICS
 # FEN strings
 empty_board = "8/8/8/8/8/8/8/8 w - - "
 start_position = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 "
-tricky_position = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQq - 0 1 "
+tricky_position = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1 "
 killer_position = "rnbqkb1r/pp1p1pPp/8/2p1pP2/1P1P4/3P3P/P1P1P3/RNBQKBNR b KQkq h1 0 1"
 cmk_position = "r2q1rk1/ppp2ppp/2n1bn2/2b1p3/3pP3/3P1NPP/PPP1NPB1/R1BQ1RK1 b q - 0 9 "
 
@@ -864,6 +864,9 @@ def generate_moves() -> None:
 
         # generate white pawn & white king castling
         if current_props[0] == color_enum('white'):
+
+
+            # pawn moves ------------------------------------------------------ #
             
             # pick up white pawn bitboard
             if i == piece_enum('P'):
@@ -930,9 +933,40 @@ def generate_moves() -> None:
                     # pop ls1b from bitboard copy
                     bitboard = clear_bit(bitboard, source_square)
 
+            # --------------------------------------------------------------------- #
+
+            # castling moves ------------------------------------------------------ #
+
+            if i == piece_enum('K'):
+
+                # king side castling is avaiable
+                if current_props[2] & castle_flags['wk']:
+
+                    # make sure squares are not occupied
+                    if not get_bit(occupancies[color_enum('both')], square_enum('f1')) and not get_bit(occupancies[color_enum('both')], square_enum('g1')):
+
+                        # make sure squares are not attacked
+                        if not is_square_attacked(square_enum('e1'), color_enum('black')) and not is_square_attacked(square_enum('f1'), color_enum('black')):
+                            print(f'king side castling: e1 to g1')
+
+
+                # queen side castling is avaiable
+                if current_props[2] & castle_flags['wq']:
+
+                    # make sure squares are not occupied
+                    if not get_bit(occupancies[color_enum('both')], square_enum('d1')) and not get_bit(occupancies[color_enum('both')], square_enum('c1')) and not get_bit(occupancies[color_enum('both')], square_enum('b1')):
+
+                        # make sure squares are not attacked
+                        if not is_square_attacked(square_enum('e1'), color_enum('black')) and not is_square_attacked(square_enum('d1'), color_enum('black')):
+                            print(f'queen side castling: e1 to c1')                        
+
+            # --------------------------------------------------------------------- #
+
         # generate black pawn & black king castling
         else:
             
+            # pawn moves ------------------------------------------------------ #
+
             # pick up black pawn bitboard
             if i == piece_enum('p'):
 
@@ -997,6 +1031,34 @@ def generate_moves() -> None:
                     # pop ls1b from bitboard copy
                     bitboard = clear_bit(bitboard, source_square)
 
+            # --------------------------------------------------------------------- #
+
+            # castling moves ------------------------------------------------------ #
+
+            if i == piece_enum('k'):
+                    
+                    # king side castling is avaiable
+                    if current_props[2] & castle_flags['bk']:
+    
+                        # make sure squares are not occupied
+                        if not get_bit(occupancies[color_enum('both')], square_enum('f8')) and not get_bit(occupancies[color_enum('both')], square_enum('g8')):
+    
+                            # make sure squares are not attacked
+                            if not is_square_attacked(square_enum('e8'), color_enum('white')) and not is_square_attacked(square_enum('f8'), color_enum('white')):
+                                print(f'king side castling: e8 to g8')
+    
+                    # queen side castling is avaiable
+                    if current_props[2] & castle_flags['bq']:
+    
+                        # make sure squares are not occupied
+                        if not get_bit(occupancies[color_enum('both')], square_enum('d8')) and not get_bit(occupancies[color_enum('both')], square_enum('c8')) and not get_bit(occupancies[color_enum('both')], square_enum('b8')):
+    
+                            # make sure squares are not attacked
+                            if not is_square_attacked(square_enum('e8'), color_enum('white')) and not is_square_attacked(square_enum('d8'), color_enum('white')):
+                                print(f'queen side castling: e8 to c8')
+            
+            # --------------------------------------------------------------------- #
+
         # generate knight moves
 
         # generate bishop moves
@@ -1016,7 +1078,7 @@ init_leaper_attacks()
 init_sliders_attacks(slider_enum('bishop'))
 init_sliders_attacks(slider_enum('rook'))
 
-parse_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/Pp2P3/2N2Q1p/1PPBBPpP/R3K2R b KQkq a3 0 1 ")
+parse_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b KQkq - 0 1 ")
 print_board()
 
 generate_moves()
