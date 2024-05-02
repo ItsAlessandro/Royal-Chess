@@ -173,8 +173,8 @@ def set_bit(bitboard : int, square : int ) -> int:
     return bitboard | (1 << square)
 
 # Updates a bitboard specific square to unoccupied
-def clear_bit(bitboard : int, square : int) -> None:
-    return bitboard ^ (1 << square) if get_bit(bitboard, square) else bitboard
+def clear_bit(bitboard : int, square : int) -> int:
+    return (bitboard ^ (1 << square) if get_bit(bitboard, square) else bitboard) & 0xFFFFFFFFFFFFFFFF
 
 # Count bits in a bitboard
 def count_bits(bitboard : int) -> int:
@@ -1060,16 +1060,212 @@ def generate_moves() -> None:
             # --------------------------------------------------------------------- #
 
         # generate knight moves
+        if (i == piece_enum('N') if current_props[0] == color_enum('white') else i == piece_enum('n')):
+                
+            # loop over knight bitboard
+            while bitboard:
+    
+                # init source square
+                source_square = get_ls1b_index(bitboard)
+    
+                # init target square
+                attacks = knight_attacks[source_square] & (~occupancies[color_enum('white')] if current_props[0] == color_enum('white') else ~occupancies[color_enum('black')])
+    
+                # loop over knight attacks
+                while attacks:
+    
+                    # init target square
+                    target_square = get_ls1b_index(attacks)
+    
+                    # quiet move
+                    if not get_bit((occupancies[color_enum('black')] if current_props[0] == color_enum('white') else occupancies[color_enum('white')]), target_square):
+                        print(f"piece quiet move: {board_squares[source_square]}{board_squares[target_square]}")
+
+                    else:
+                        # capture move
+                        print(f"capture move: {board_squares[source_square]}{board_squares[target_square]}")
+    
+                    # pop ls1b from attacks copy
+                    attacks = clear_bit(attacks, target_square)
+    
+                # pop ls1b from bitboard copy
+                bitboard = clear_bit(bitboard, source_square)
 
         # generate bishop moves
+        if (i == piece_enum('B') if current_props[0] == color_enum('white') else i == piece_enum('b')):
+                
+            # loop over bishop bitboard
+            while bitboard:
+    
+                # init source square
+                source_square = get_ls1b_index(bitboard)
+    
+                # init target square
+                attacks = get_bishop_attacks(source_square, occupancies[color_enum('both')]) & (~occupancies[color_enum('white')] if current_props[0] == color_enum('white') else ~occupancies[color_enum('black')])
+    
+                # loop over bishop attacks
+                while attacks:
+    
+                    # init target square
+                    target_square = get_ls1b_index(attacks)
+    
+                    # quiet move
+                    if not get_bit((occupancies[color_enum('black')] if current_props[0] == color_enum('white') else occupancies[color_enum('white')]), target_square):
+                        print(f"piece quiet move: {board_squares[source_square]}{board_squares[target_square]}")
+    
+                    else:
+                        # capture move
+                        print(f"capture move: {board_squares[source_square]}{board_squares[target_square]}")
+    
+                    # pop ls1b from attacks copy
+                    attacks = clear_bit(attacks, target_square)
+    
+                # pop ls1b from bitboard copy
+                bitboard = clear_bit(bitboard, source_square)
 
         # generate rook moves
+        if (i == piece_enum('R') if current_props[0] == color_enum('white') else i == piece_enum('r')):
+                
+            # loop over bishop bitboard
+            while bitboard:
+    
+                # init source square
+                source_square = get_ls1b_index(bitboard)
+    
+                # init target square
+                attacks = get_rook_attacks(source_square, occupancies[color_enum('both')]) & (~occupancies[color_enum('white')] if current_props[0] == color_enum('white') else ~occupancies[color_enum('black')])
+    
+                # loop over bishop attacks
+                while attacks:
+    
+                    # init target square
+                    target_square = get_ls1b_index(attacks)
+    
+                    # quiet move
+                    if not get_bit((occupancies[color_enum('black')] if current_props[0] == color_enum('white') else occupancies[color_enum('white')]), target_square):
+                        print(f"piece quiet move: {board_squares[source_square]}{board_squares[target_square]}")
+    
+                    else:
+                        # capture move
+                        print(f"capture move: {board_squares[source_square]}{board_squares[target_square]}")
+    
+                    # pop ls1b from attacks copy
+                    attacks = clear_bit(attacks, target_square)
+    
+                # pop ls1b from bitboard copy
+                bitboard = clear_bit(bitboard, source_square)
 
         # generate queen moves
+        if (i == piece_enum('Q') if current_props[0] == color_enum('white') else i == piece_enum('q')):
+                
+            # loop over bishop bitboard
+            while bitboard:
+    
+                # init source square
+                source_square = get_ls1b_index(bitboard)
+    
+                # init target square
+                attacks = get_queen_attacks(source_square, occupancies[color_enum('both')]) & (~occupancies[color_enum('white')] if current_props[0] == color_enum('white') else ~occupancies[color_enum('black')])
+    
+                # loop over bishop attacks
+                while attacks:
+    
+                    # init target square
+                    target_square = get_ls1b_index(attacks)
+    
+                    # quiet move
+                    if not get_bit((occupancies[color_enum('black')] if current_props[0] == color_enum('white') else occupancies[color_enum('white')]), target_square):
+                        print(f"piece quiet move: {board_squares[source_square]}{board_squares[target_square]}")
+    
+                    else:
+                        # capture move
+                        print(f"capture move: {board_squares[source_square]}{board_squares[target_square]}")
+    
+                    # pop ls1b from attacks copy
+                    attacks = clear_bit(attacks, target_square)
+    
+                # pop ls1b from bitboard copy
+                bitboard = clear_bit(bitboard, source_square)
 
         # generate king moves
+        if (i == piece_enum('K') if current_props[0] == color_enum('white') else i == piece_enum('k')):
+                
+            # loop over knight bitboard
+            while bitboard:
+    
+                # init source square
+                source_square = get_ls1b_index(bitboard)
+    
+                # init target square
+                attacks = king_attacks[source_square] & (~occupancies[color_enum('white')] if current_props[0] == color_enum('white') else ~occupancies[color_enum('black')])
+    
+                # loop over knight attacks
+                while attacks:
+    
+                    # init target square
+                    target_square = get_ls1b_index(attacks)
+    
+                    # quiet move
+                    if not get_bit((occupancies[color_enum('black')] if current_props[0] == color_enum('white') else occupancies[color_enum('white')]), target_square):
+                        print(f"piece quiet move: {board_squares[source_square]}{board_squares[target_square]}")
+
+                    else:
+                        # capture move
+                        print(f"capture move: {board_squares[source_square]}{board_squares[target_square]}")
+    
+                    # pop ls1b from attacks copy
+                    attacks = clear_bit(attacks, target_square)
+    
+                # pop ls1b from bitboard copy
+                bitboard = clear_bit(bitboard, source_square)
 
 # ---------------------------------------------------------------------- #
+
+"""
+    binary move bits                                               hexidecimal constants
+    
+    0000 0000 0000 0000 0011 1111           source square          0x3f
+    0000 0000 0000 1111 1100 0000           target square          0xfc0
+    0000 0000 1111 0000 0000 0000           piece                  0xf000
+    0000 1111 0000 0000 0000 0000           promoted piece         0xf0000
+    0001 0000 0000 0000 0000 0000           capture flag           0x100000
+    0010 0000 0000 0000 0000 0000           double push flag       0x200000
+    0100 0000 0000 0000 0000 0000           enpassant flag         0x400000
+    1000 0000 0000 0000 0000 0000           castling flag          0x800000
+
+"""
+
+# encode macro 
+def encode_move(source : int, target : int, piece : int, promoted : int, capture : int, double : int, enpassant : int, castling : int) -> int:
+
+    # returning encoded move
+    return source | target << 6 | piece << 12 | promoted << 16 | capture << 20 | double << 21 | enpassant << 22 | castling << 23
+
+# extract source square from move
+def get_move_source(move : int) -> int: return move & 0x3f
+
+# extract target square from move
+def get_move_target(move : int) -> int: return (move & 0xfc0) >> 6
+
+# extract piece from move
+def get_move_piece(move : int) -> int: return (move & 0xf000) >> 12
+
+# extract promoted piece from move
+def get_move_promoted(move : int) -> int: return (move & 0xf0000) >> 16
+
+# extract capture flag from move
+def get_move_capture(move : int) -> int: return (move & 0x100000) >> 20
+
+# extract double push flag from move
+def get_move_double(move : int) -> int: return (move & 0x200000) >> 21
+
+# extract enpassant flag from move
+def get_move_enpassant(move : int) -> int: return (move & 0x400000) >> 22
+
+# extract castling flag from move
+def get_move_castling(move : int) -> int: return (move & 0x800000) >> 23
+
+# init ----------------------------------------------------------------- #
 
 # Leaper attacks initializer
 init_leaper_attacks()
@@ -1078,7 +1274,18 @@ init_leaper_attacks()
 init_sliders_attacks(slider_enum('bishop'))
 init_sliders_attacks(slider_enum('rook'))
 
-parse_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b KQkq - 0 1 ")
-print_board()
+move = encode_move(square_enum('e2'), square_enum('e4'), piece_enum('P'), piece_enum('Q'), 1, 1, 0, 0)
 
-generate_moves()
+# extract source bits
+source_square = get_move_source(move)
+target_square = get_move_target(move)
+piece = get_move_piece(move)
+promoted = get_move_promoted(move)
+
+print(f'source square: {board_squares[source_square]}')
+print(f'target square: {board_squares[target_square]}')
+print(f'piece: {ascii_pieces[pieces[piece]]}')
+print(f'promoted: {ascii_pieces[pieces[promoted]]}')
+print(f'capture: {get_move_capture(move)}')
+
+# ---------------------------------------------------------------------- #
