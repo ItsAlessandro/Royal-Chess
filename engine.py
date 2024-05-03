@@ -30,7 +30,7 @@ from constants import ROOK_MAGICS, BISHOP_MAGICS
 # Constants & Globals
 
 # FEN strings
-empty_board = "8/8/8/8/8/8/8/8 w - - "
+empty_board = "8/8/8/8/8/8/8/8 b - - "
 start_position = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 "
 tricky_position = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1 "
 killer_position = "rnbqkb1r/pp1p1pPp/8/2p1pP2/1P1P4/3P3P/P1P1P3/RNBQKBNR b KQkq h1 0 1"
@@ -85,6 +85,11 @@ occupancies = [0 for _ in range(3)] # white, black, both
 
 # Python way TODO : use a class to fix this mess (in python is not possible to modify in functions primitive dt)
 current_props = [0, board_squares.index('no_sq'), 0] # side, enpassant, castle
+
+# Copies
+bitboards_copy = bitboards.copy()
+occupancies_copy = occupancies.copy()
+current_props_copy = current_props.copy()
 
 """
 # ORIGINAL WAY: ------------------------------------------------------- #
@@ -175,6 +180,62 @@ def set_bit(bitboard : int, square : int ) -> int:
 # Updates a bitboard specific square to unoccupied
 def clear_bit(bitboard : int, square : int) -> int:
     return (bitboard ^ (1 << square) if get_bit(bitboard, square) else bitboard) & 0xFFFFFFFFFFFFFFFF
+
+# promoted pieces
+promoted_pieces = {
+    'Q': 'q',
+    'R': 'r',
+    'B': 'b',
+    'N': 'n',
+    'q': 'q',
+    'r': 'r',
+    'b': 'b',
+    'n': 'n'
+}
+
+# move list structure
+class Moves:
+    def __init__(self):
+        self.moves = [0 for _ in range(256)]
+        self.count = 0 # index for moves
+
+# add move function
+def add_move(move_list : Moves, move : int) -> None:
+    
+        # add move to move list
+        move_list.moves[move_list.count] = move
+    
+        # increment move list count
+        move_list.count += 1
+
+# print move 
+def print_move(move : int) -> None:
+
+    print(f'{board_squares[get_move_source(move)]}{board_squares[get_move_target(move)]}{promoted_pieces[pieces[get_move_promoted(move)]]}')
+
+# print move list
+def print_move_list(move_list : Moves) -> None:
+
+    # do not print if no moves
+    if not move_list.count: 
+        print('No moves in move list')
+        return
+
+    print(f'\nmove   piece   capture   double   enpassant   castling\n')
+
+    # loop over a move list
+    for i in range(move_list.count):
+
+        # get current move
+        move = move_list.moves[i]
+
+        # build line
+        line = f"{board_squares[get_move_source(move)]}{board_squares[get_move_target(move)]}{promoted_pieces[pieces[get_move_promoted(move)]] if get_move_promoted(move) else ' '}    {ascii_pieces[pieces[get_move_piece(move)]]}        {get_move_capture(move)}        {get_move_double(move)}          {get_move_enpassant(move)}          {get_move_castling(move)}"
+
+        # print move
+        print(line)
+
+    print(f'\nTotal number of moves: {move_list.count}\n')
 
 # Count bits in a bitboard
 def count_bits(bitboard : int) -> int:
@@ -847,8 +908,55 @@ def is_square_attacked(square : int, side : int) -> bool:
     # by default return false
     return False
 
+# move types enumeration
+move_types = [
+    'all_moves','only_captures'
+]
+
+# returns the index of a move type
+def move_type_enum(move_type : str) -> int:
+    return move_types.index(move_type)
+
+# make move on chessboard
+def make_move(move : int, move_flag : int) -> int:
+
+    # quite moves
+    if move_flag == move_type_enum('all_moves'):
+        
+        # preserve board state
+        copy_board()
+
+        # parse move
+        source_square = get_move_source(move)
+        target_square = get_move_target(move)
+        piece = get_move_piece(move)
+        promoted = get_move_promoted(move)
+        capture = get_move_capture(move)
+        double_push = get_move_double(move)
+        enpassant = get_move_enpassant(move)
+        castling = get_move_castling(move)
+
+        # move piece
+        bitboards[piece] = clear_bit(bitboards[piece], source_square)
+        bitboards[piece] = set_bit(bitboards[piece], target_square)
+
+
+    # capture moves
+    else:
+
+        # make sure move is a capture
+        if get_move_capture(move):
+            make_move(move, move_type_enum('all_moves'))
+        
+        # otherwise return illegal move
+        else: return 0
+        
+
 # generate all moves
-def generate_moves() -> None:
+def generate_moves(move_list : Moves) -> None:
+
+    # refresh move count
+    move_list.count = 0
 
     # define source and target squares
     source_square = target_square = 0
@@ -885,16 +993,20 @@ def generate_moves() -> None:
 
                         # pawn promotion
                         if source_square >= square_enum('a7') and source_square <= square_enum('h7'):
-                            print(f'pawn promotion: {board_squares[source_square]} to {board_squares[target_square]}')
+
+                            add_move(move_list, encode_move(source_square, target_square, i, piece_enum('Q'), 0, 0, 0, 0))
+                            add_move(move_list, encode_move(source_square, target_square, i, piece_enum('R'), 0, 0, 0, 0))
+                            add_move(move_list, encode_move(source_square, target_square, i, piece_enum('B'), 0, 0, 0, 0))
+                            add_move(move_list, encode_move(source_square, target_square, i, piece_enum('N'), 0, 0, 0, 0))
 
                         else:
 
                             # one square ahead pawn
-                            print(f'pawn push: {board_squares[source_square]} to {board_squares[target_square]}')
+                            add_move(move_list, encode_move(source_square, target_square, i, 0, 0, 0, 0, 0))
                             
                             # double square ahead pawn
                             if (source_square >= square_enum('a2') and source_square <= square_enum('h2')) and not get_bit(occupancies[color_enum('both')], target_square - 8):
-                                print(f'pawn double push: {board_squares[source_square]} to {board_squares[target_square - 8]}')
+                                add_move(move_list, encode_move(source_square, target_square - 8, i, 0, 0, 1, 0, 0))
 
                     # init pawn attacks
                     attacks = pawn_attacks[color_enum('white')][source_square] & occupancies[color_enum('black')]
@@ -907,11 +1019,14 @@ def generate_moves() -> None:
 
                         # pawn promotion
                         if source_square >= square_enum('a7') and source_square <= square_enum('h7'):
-                            print(f'pawn capture promotion: {board_squares[source_square]} to {board_squares[target_square]}')
+                            add_move(move_list, encode_move(source_square, target_square, i, piece_enum('Q'), 1, 0, 0, 0))
+                            add_move(move_list, encode_move(source_square, target_square, i, piece_enum('R'), 1, 0, 0, 0))
+                            add_move(move_list, encode_move(source_square, target_square, i, piece_enum('B'), 1, 0, 0, 0))
+                            add_move(move_list, encode_move(source_square, target_square, i, piece_enum('N'), 1, 0, 0, 0))
 
                         else:
                             # pawn capture
-                            print(f'pawn capture: {board_squares[source_square]} to {board_squares[target_square]}')
+                            add_move(move_list, encode_move(source_square, target_square, i, 0, 1, 0, 0, 0))
                         
                         # pop ls1b from attacks copy
                         attacks = clear_bit(attacks, target_square)
@@ -927,7 +1042,7 @@ def generate_moves() -> None:
 
                             # init enpassant capture target square
                             target_enpassant = get_ls1b_index(enpassant_attacks)
-                            print(f'enpassant capture: {board_squares[source_square]} to {board_squares[target_enpassant]}')
+                            add_move(move_list, encode_move(source_square, target_enpassant, i, 0, 1, 0, 1, 0))
 
 
                     # pop ls1b from bitboard copy
@@ -947,7 +1062,7 @@ def generate_moves() -> None:
 
                         # make sure squares are not attacked
                         if not is_square_attacked(square_enum('e1'), color_enum('black')) and not is_square_attacked(square_enum('f1'), color_enum('black')):
-                            print(f'king side castling: e1 to g1')
+                            add_move(move_list, encode_move(square_enum('e1'), square_enum('g1'), i, 0, 0, 0, 0, 1))
 
 
                 # queen side castling is avaiable
@@ -958,7 +1073,7 @@ def generate_moves() -> None:
 
                         # make sure squares are not attacked
                         if not is_square_attacked(square_enum('e1'), color_enum('black')) and not is_square_attacked(square_enum('d1'), color_enum('black')):
-                            print(f'queen side castling: e1 to c1')                        
+                            add_move(move_list, encode_move(square_enum('e1'), square_enum('c1'), i, 0, 0, 0, 0, 1))                   
 
             # --------------------------------------------------------------------- #
 
@@ -984,16 +1099,19 @@ def generate_moves() -> None:
 
                         # pawn promotion
                         if source_square >= square_enum('a2') and source_square <= square_enum('h2'):
-                            print(f'pawn promotion: {board_squares[source_square]} to {board_squares[target_square]}')
+                            add_move(move_list, encode_move(source_square, target_square, i, piece_enum('q'), 0, 0, 0, 0))
+                            add_move(move_list, encode_move(source_square, target_square, i, piece_enum('r'), 0, 0, 0, 0))
+                            add_move(move_list, encode_move(source_square, target_square, i, piece_enum('b'), 0, 0, 0, 0))
+                            add_move(move_list, encode_move(source_square, target_square, i, piece_enum('n'), 0, 0, 0, 0))
 
                         else:
 
                             # one square ahead pawn
-                            print(f'pawn push: {board_squares[source_square]} to {board_squares[target_square]}')
-                            
+                            add_move(move_list, encode_move(source_square, target_square, i, 0, 0, 0, 0, 0))
+
                             # double square ahead pawn
                             if (source_square >= square_enum('a7') and source_square <= square_enum('h7')) and not get_bit(occupancies[color_enum('both')], target_square + 8):
-                                print(f'pawn double push: {board_squares[source_square]} to {board_squares[target_square + 8]}')
+                                add_move(move_list, encode_move(source_square, target_square + 8, i, 0, 0, 1, 0, 0))
 
                     # init pawn attacks
                     attacks = pawn_attacks[color_enum('black')][source_square] & occupancies[color_enum('white')]
@@ -1006,11 +1124,14 @@ def generate_moves() -> None:
 
                         # pawn promotion
                         if source_square >= square_enum('a2') and source_square <= square_enum('h2'):
-                            print(f'pawn capture promotion: {board_squares[source_square]} to {board_squares[target_square]}')
+                            add_move(move_list, encode_move(source_square, target_square, i, piece_enum('q'), 1, 0, 0, 0))
+                            add_move(move_list, encode_move(source_square, target_square, i, piece_enum('r'), 1, 0, 0, 0))
+                            add_move(move_list, encode_move(source_square, target_square, i, piece_enum('b'), 1, 0, 0, 0))
+                            add_move(move_list, encode_move(source_square, target_square, i, piece_enum('n'), 1, 0, 0, 0))
 
                         else:
                             # pawn capture
-                            print(f'pawn capture: {board_squares[source_square]} to {board_squares[target_square]}')
+                            add_move(move_list, encode_move(source_square, target_square, i, 0, 1, 0, 0, 0))
                         
                         # pop ls1b from attacks copy
                         attacks = clear_bit(attacks, target_square)
@@ -1026,7 +1147,7 @@ def generate_moves() -> None:
 
                             # init enpassant capture target square
                             target_enpassant = get_ls1b_index(enpassant_attacks)
-                            print(f'enpassant capture: {board_squares[source_square]} to {board_squares[target_enpassant]}')
+                            add_move(move_list, encode_move(source_square, target_enpassant, i, 0, 1, 0, 1, 0))
 
                     # pop ls1b from bitboard copy
                     bitboard = clear_bit(bitboard, source_square)
@@ -1045,7 +1166,7 @@ def generate_moves() -> None:
     
                             # make sure squares are not attacked
                             if not is_square_attacked(square_enum('e8'), color_enum('white')) and not is_square_attacked(square_enum('f8'), color_enum('white')):
-                                print(f'king side castling: e8 to g8')
+                                add_move(move_list, encode_move(square_enum('e8'), square_enum('g8'), i, 0, 0, 0, 0, 1))
     
                     # queen side castling is avaiable
                     if current_props[2] & castle_flags['bq']:
@@ -1055,7 +1176,7 @@ def generate_moves() -> None:
     
                             # make sure squares are not attacked
                             if not is_square_attacked(square_enum('e8'), color_enum('white')) and not is_square_attacked(square_enum('d8'), color_enum('white')):
-                                print(f'queen side castling: e8 to c8')
+                                add_move(move_list, encode_move(square_enum('e8'), square_enum('c8'), i, 0, 0, 0, 0, 1))
             
             # --------------------------------------------------------------------- #
 
@@ -1079,11 +1200,11 @@ def generate_moves() -> None:
     
                     # quiet move
                     if not get_bit((occupancies[color_enum('black')] if current_props[0] == color_enum('white') else occupancies[color_enum('white')]), target_square):
-                        print(f"piece quiet move: {board_squares[source_square]}{board_squares[target_square]}")
+                        add_move(move_list, encode_move(source_square, target_square, i, 0, 0, 0, 0, 0))
 
                     else:
                         # capture move
-                        print(f"capture move: {board_squares[source_square]}{board_squares[target_square]}")
+                        add_move(move_list, encode_move(source_square, target_square, i, 0, 1, 0, 0, 0))
     
                     # pop ls1b from attacks copy
                     attacks = clear_bit(attacks, target_square)
@@ -1111,11 +1232,11 @@ def generate_moves() -> None:
     
                     # quiet move
                     if not get_bit((occupancies[color_enum('black')] if current_props[0] == color_enum('white') else occupancies[color_enum('white')]), target_square):
-                        print(f"piece quiet move: {board_squares[source_square]}{board_squares[target_square]}")
+                        add_move(move_list, encode_move(source_square, target_square, i, 0, 0, 0, 0, 0))
     
                     else:
                         # capture move
-                        print(f"capture move: {board_squares[source_square]}{board_squares[target_square]}")
+                        add_move(move_list, encode_move(source_square, target_square, i, 0, 1, 0, 0, 0))
     
                     # pop ls1b from attacks copy
                     attacks = clear_bit(attacks, target_square)
@@ -1143,11 +1264,11 @@ def generate_moves() -> None:
     
                     # quiet move
                     if not get_bit((occupancies[color_enum('black')] if current_props[0] == color_enum('white') else occupancies[color_enum('white')]), target_square):
-                        print(f"piece quiet move: {board_squares[source_square]}{board_squares[target_square]}")
+                        add_move(move_list, encode_move(source_square, target_square, i, 0, 0, 0, 0, 0))
     
                     else:
                         # capture move
-                        print(f"capture move: {board_squares[source_square]}{board_squares[target_square]}")
+                        add_move(move_list, encode_move(source_square, target_square, i, 0, 1, 0, 0, 0))
     
                     # pop ls1b from attacks copy
                     attacks = clear_bit(attacks, target_square)
@@ -1175,11 +1296,11 @@ def generate_moves() -> None:
     
                     # quiet move
                     if not get_bit((occupancies[color_enum('black')] if current_props[0] == color_enum('white') else occupancies[color_enum('white')]), target_square):
-                        print(f"piece quiet move: {board_squares[source_square]}{board_squares[target_square]}")
+                        add_move(move_list, encode_move(source_square, target_square, i, 0, 0, 0, 0, 0))
     
                     else:
                         # capture move
-                        print(f"capture move: {board_squares[source_square]}{board_squares[target_square]}")
+                        add_move(move_list, encode_move(source_square, target_square, i, 0, 1, 0, 0, 0))
     
                     # pop ls1b from attacks copy
                     attacks = clear_bit(attacks, target_square)
@@ -1207,17 +1328,30 @@ def generate_moves() -> None:
     
                     # quiet move
                     if not get_bit((occupancies[color_enum('black')] if current_props[0] == color_enum('white') else occupancies[color_enum('white')]), target_square):
-                        print(f"piece quiet move: {board_squares[source_square]}{board_squares[target_square]}")
+                        add_move(move_list, encode_move(source_square, target_square, i, 0, 0, 0, 0, 0))
 
                     else:
                         # capture move
-                        print(f"capture move: {board_squares[source_square]}{board_squares[target_square]}")
+                        add_move(move_list, encode_move(source_square, target_square, i, 0, 1, 0, 0, 0))
     
                     # pop ls1b from attacks copy
                     attacks = clear_bit(attacks, target_square)
     
                 # pop ls1b from bitboard copy
                 bitboard = clear_bit(bitboard, source_square)
+
+# Copies the current board state
+def copy_board() -> None:
+    global bitboards_copy, occupancies_copy, current_props_copy
+    bitboards_copy = bitboards.copy()
+    occupancies_copy = occupancies.copy()
+    current_props_copy = current_props.copy()
+
+def take_back() -> None:
+    global bitboards, occupancies, current_props
+    bitboards = bitboards_copy.copy()
+    occupancies = occupancies_copy.copy()
+    current_props = current_props_copy.copy()
 
 # ---------------------------------------------------------------------- #
 
@@ -1274,18 +1408,33 @@ init_leaper_attacks()
 init_sliders_attacks(slider_enum('bishop'))
 init_sliders_attacks(slider_enum('rook'))
 
-move = encode_move(square_enum('e2'), square_enum('e4'), piece_enum('P'), piece_enum('Q'), 1, 1, 0, 0)
+# Parse FEN
+parse_fen(tricky_position)
+print_board()
 
-# extract source bits
-source_square = get_move_source(move)
-target_square = get_move_target(move)
-piece = get_move_piece(move)
-promoted = get_move_promoted(move)
+# move list instance
+move_list = Moves()
 
-print(f'source square: {board_squares[source_square]}')
-print(f'target square: {board_squares[target_square]}')
-print(f'piece: {ascii_pieces[pieces[piece]]}')
-print(f'promoted: {ascii_pieces[pieces[promoted]]}')
-print(f'capture: {get_move_capture(move)}')
+# generate moves
+generate_moves(move_list)
+
+# loop over generated moves
+for i in range(move_list.count):
+
+    # init move
+    move = move_list.moves[i]
+
+    # preserve board state
+    copy_board()
+
+    # make move
+    make_move(move, move_type_enum('all_moves'))
+    print_board()
+    input()
+
+    # take back
+    take_back()
+    print_board()
+    input()
 
 # ---------------------------------------------------------------------- #
