@@ -25,6 +25,7 @@
 
 # Imports 
 
+import time
 from constants import ROOK_MAGICS, BISHOP_MAGICS
 
 # Constants & Globals
@@ -90,6 +91,11 @@ current_props = [0, board_squares.index('no_sq'), 0] # side, enpassant, castle
 bitboards_copy = bitboards.copy()
 occupancies_copy = occupancies.copy()
 current_props_copy = current_props.copy()
+
+# Original
+bitboards_original = bitboards.copy()
+occupancies_original = occupancies.copy()
+current_props_original = current_props.copy()
 
 """
 # ORIGINAL WAY: ------------------------------------------------------- #
@@ -917,8 +923,22 @@ move_types = [
 def move_type_enum(move_type : str) -> int:
     return move_types.index(move_type)
 
+# castling rights update
+castling_rights = [
+     7, 15, 15, 15,  3, 15, 15, 11,
+    15, 15, 15, 15, 15, 15, 15, 15,
+    15, 15, 15, 15, 15, 15, 15, 15,
+    15, 15, 15, 15, 15, 15, 15, 15,
+    15, 15, 15, 15, 15, 15, 15, 15,
+    15, 15, 15, 15, 15, 15, 15, 15,
+    15, 15, 15, 15, 15, 15, 15, 15,
+    13, 15, 15, 15, 12, 15, 15, 14
+]
+
 # make move on chessboard
 def make_move(move : int, move_flag : int) -> int:
+
+    global current_props
 
     # quite moves
     if move_flag == move_type_enum('all_moves'):
@@ -930,7 +950,7 @@ def make_move(move : int, move_flag : int) -> int:
         source_square = get_move_source(move)
         target_square = get_move_target(move)
         piece = get_move_piece(move)
-        promoted = get_move_promoted(move)
+        promoted_piece = get_move_promoted(move)
         capture = get_move_capture(move)
         double_push = get_move_double(move)
         enpassant = get_move_enpassant(move)
@@ -939,6 +959,127 @@ def make_move(move : int, move_flag : int) -> int:
         # move piece
         bitboards[piece] = clear_bit(bitboards[piece], source_square)
         bitboards[piece] = set_bit(bitboards[piece], target_square)
+
+        # handling capture moves
+        if capture:
+
+            # pick up bitboard index ranges
+            start_piece = end_piece = 0
+
+            # white pieces
+            if current_props[0] == color_enum('white'):
+                start_piece = piece_enum('p')
+                end_piece = piece_enum('k')
+
+            # black pieces
+            else:
+                start_piece = piece_enum('P')
+                end_piece = piece_enum('K')
+
+            # loop over all pieces
+            for i in range(start_piece, end_piece + 1):
+
+                # if piece is captured
+                if get_bit(bitboards[i], target_square):
+
+                    # remove piece from board
+                    bitboards[i] = clear_bit(bitboards[i], target_square)
+                    break
+
+        # handling pawn promotions
+        if promoted_piece:
+                
+                # remove pawn from board
+                bitboards[piece_enum('P') if current_props[0] == color_enum('white') else piece_enum('p')] = clear_bit(bitboards[piece_enum('P') if current_props[0] == color_enum('white') else piece_enum('p')], target_square)
+    
+                # add promoted piece to board
+                bitboards[promoted_piece] = set_bit(bitboards[promoted_piece], target_square)
+
+        # handling enpassant moves
+        if enpassant:
+
+            if current_props[0] == color_enum('white'):
+                bitboards[piece_enum('p')] = clear_bit(bitboards[piece_enum('p')], target_square + 8)
+
+            else:
+                bitboards[piece_enum('P')] = clear_bit(bitboards[piece_enum('P')], target_square - 8)
+        
+        # reset enpassant square
+        current_props[1] = square_enum('no_sq')
+
+        # double pawn push
+        if double_push:
+                
+                # set enpassant square
+                # TODO : current_props[1] = (source_square + target_square) // 2
+
+                if current_props[0] == color_enum('white'):
+                    current_props[1] = board_squares[target_square + 8]
+                
+                else:
+                    current_props[1] = board_squares[target_square - 8]
+
+        # handling castling moves
+        if castling:
+
+            # white king side castling
+            if target_square == square_enum('g1'):
+
+                # move H rook
+                bitboards[piece_enum('R')] = clear_bit(bitboards[piece_enum('R')], square_enum('h1'))
+                bitboards[piece_enum('R')] = set_bit(bitboards[piece_enum('R')], square_enum('f1'))
+
+            # white queen side castling 
+            elif target_square == square_enum('c1'):
+                
+                # move A rook
+                bitboards[piece_enum('R')] = clear_bit(bitboards[piece_enum('R')], square_enum('a1'))
+                bitboards[piece_enum('R')] = set_bit(bitboards[piece_enum('R')], square_enum('d1'))
+
+            # black king side castling
+            elif target_square == square_enum('g8'):
+                    
+                    # move H rook
+                    bitboards[piece_enum('r')] = clear_bit(bitboards[piece_enum('r')], square_enum('h8'))
+                    bitboards[piece_enum('r')] = set_bit(bitboards[piece_enum('r')], square_enum('f8'))
+
+            # black queen side castling
+            elif target_square == square_enum('c8'):
+
+                    # move A rook
+                    bitboards[piece_enum('r')] = clear_bit(bitboards[piece_enum('r')], square_enum('a8'))
+                    bitboards[piece_enum('r')] = set_bit(bitboards[piece_enum('r')], square_enum('d8'))
+
+        # update castling rights
+        current_props[2] &= castling_rights[source_square]
+        current_props[2] &= castling_rights[target_square]
+
+        global occupancies
+        for i in range(3): occupancies[i] = 0
+
+        # loop over white pieces
+        for i in range(6):
+            occupancies[color_enum('white')] |= bitboards[i]
+        
+        # loop over black pieces
+        for i in range(6, 12):
+            occupancies[color_enum('black')] |= bitboards[i]
+
+        # loop over both colors
+        occupancies[color_enum('both')] = occupancies[color_enum('white')] | occupancies[color_enum('black')]
+
+        # change side to move
+        current_props[0] ^= 1
+
+        # make sure king is not in check
+        if is_square_attacked(get_ls1b_index(bitboards[piece_enum('k')]) if current_props[0] == color_enum('white') else get_ls1b_index(bitboards[piece_enum('K')]), current_props[0]):
+            # move is illegal
+            take_back()
+            return 0
+        
+        else:
+                # move is legal
+                return 1
 
 
     # capture moves
@@ -1340,19 +1481,6 @@ def generate_moves(move_list : Moves) -> None:
                 # pop ls1b from bitboard copy
                 bitboard = clear_bit(bitboard, source_square)
 
-# Copies the current board state
-def copy_board() -> None:
-    global bitboards_copy, occupancies_copy, current_props_copy
-    bitboards_copy = bitboards.copy()
-    occupancies_copy = occupancies.copy()
-    current_props_copy = current_props.copy()
-
-def take_back() -> None:
-    global bitboards, occupancies, current_props
-    bitboards = bitboards_copy.copy()
-    occupancies = occupancies_copy.copy()
-    current_props = current_props_copy.copy()
-
 # ---------------------------------------------------------------------- #
 
 """
@@ -1399,6 +1527,75 @@ def get_move_enpassant(move : int) -> int: return (move & 0x400000) >> 22
 # extract castling flag from move
 def get_move_castling(move : int) -> int: return (move & 0x800000) >> 23
 
+def get_time_ms() -> int:
+    return int(time.time() * 1000)
+
+# PERFT ---------------------------------------------------------------- #
+
+# Copies the current board state
+def copy_board() -> None:
+    global bitboards_copy, occupancies_copy, current_props_copy
+    bitboards_copy = bitboards.copy()
+    occupancies_copy = occupancies.copy()
+    current_props_copy = current_props.copy()
+
+def take_back() -> None:
+    global bitboards, occupancies, current_props
+    bitboards = bitboards_copy.copy()
+    occupancies = occupancies_copy.copy()
+    current_props = current_props_copy.copy()
+
+# leaf nodes (positions reached at the end of the search)
+nodes = 0 # long type
+
+
+
+# perft driver
+def perft_driver(depth : int) -> None: # 2
+
+    global nodes, bitboards, occupancies, current_props
+
+    # base case
+    if depth == 0:
+
+        # count nodes
+        nodes += 1
+        return
+    
+    # move list instance
+    move_list = Moves()
+
+    # generate moves
+    generate_moves(move_list)
+
+    # loop over generated moves
+    for i in range(move_list.count):
+
+        if depth != 1:
+            internal_bitboards = bitboards.copy()
+            internal_occupancies = occupancies.copy()
+            internal_current_props = current_props.copy()
+        else:
+            copy_board()
+
+        # make move
+        if not make_move(move_list.moves[i], move_type_enum('all_moves')):
+            
+            # skip to next move (if illegal move)
+            continue
+
+        # recursive call
+        perft_driver(depth - 1)
+        
+        if depth != 1:
+            bitboards = internal_bitboards.copy()
+            occupancies = internal_occupancies.copy()
+            current_props = internal_current_props.copy()
+        else:
+            take_back()
+
+# ---------------------------------------------------------------------- #
+
 # init ----------------------------------------------------------------- #
 
 # Leaper attacks initializer
@@ -1409,32 +1606,17 @@ init_sliders_attacks(slider_enum('bishop'))
 init_sliders_attacks(slider_enum('rook'))
 
 # Parse FEN
-parse_fen(tricky_position)
+parse_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1 ")
 print_board()
 
-# move list instance
-move_list = Moves()
+# start time tracking
+start = get_time_ms()
 
-# generate moves
-generate_moves(move_list)
+# perft driver
+perft_driver(1)
 
-# loop over generated moves
-for i in range(move_list.count):
-
-    # init move
-    move = move_list.moves[i]
-
-    # preserve board state
-    copy_board()
-
-    # make move
-    make_move(move, move_type_enum('all_moves'))
-    print_board()
-    input()
-
-    # take back
-    take_back()
-    print_board()
-    input()
+# time taken
+print(f'Time taken: {get_time_ms() - start} ms')
+print(f'Nodes: {nodes}')
 
 # ---------------------------------------------------------------------- #
