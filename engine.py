@@ -217,7 +217,10 @@ def add_move(move_list : Moves, move : int) -> None:
 # print move 
 def print_move(move : int) -> None:
 
-    print(f'{board_squares[get_move_source(move)]}{board_squares[get_move_target(move)]}{promoted_pieces[pieces[get_move_promoted(move)]]}')
+    if get_move_promoted(move):
+        print(f'{board_squares[get_move_source(move)]}{board_squares[get_move_target(move)]}{promoted_pieces[pieces[get_move_promoted(move)]]}')
+    else:
+        print(f'{board_squares[get_move_source(move)]}{board_squares[get_move_target(move)]} ')
 
 # print move list
 def print_move_list(move_list : Moves) -> None:
@@ -1548,8 +1551,6 @@ def take_back() -> None:
 # leaf nodes (positions reached at the end of the search)
 nodes = 0 # long type
 
-
-
 # perft driver
 def perft_driver(depth : int) -> None: # 2
 
@@ -1588,11 +1589,251 @@ def perft_driver(depth : int) -> None: # 2
         perft_driver(depth - 1)
         
         if depth != 1:
-            bitboards = internal_bitboards.copy()
-            occupancies = internal_occupancies.copy()
-            current_props = internal_current_props.copy()
+            bitboards = internal_bitboards
+            occupancies = internal_occupancies
+            current_props = internal_current_props
         else:
             take_back()
+
+# perft test
+def perft_test(depth : int) -> None:
+
+    global nodes, bitboards, occupancies, current_props
+
+    print(f'Performance test')
+
+    # move list instance
+    move_list = Moves()
+
+    # generate moves
+    generate_moves(move_list)
+
+    # init start time
+    start = get_time_ms()
+
+    # loop over generated moves
+    for i in range(move_list.count):
+
+        if depth != 1:
+            internal_bitboards = bitboards.copy()
+            internal_occupancies = occupancies.copy()
+            internal_current_props = current_props.copy()
+        else:
+            copy_board()
+
+        # make move
+        if not make_move(move_list.moves[i], move_type_enum('all_moves')):
+            
+            # skip to next move (if illegal move)
+            continue
+
+        # commulative nodes
+        cummulative_nodes = nodes
+        old_nodes = nodes - cummulative_nodes
+
+        # recursive call
+        perft_driver(depth - 1)
+        
+        if depth != 1:
+            bitboards = internal_bitboards
+            occupancies = internal_occupancies
+            current_props = internal_current_props
+        else:
+            take_back()
+
+        print(f'move: {board_squares[get_move_source(move_list.moves[i])]}{board_squares[get_move_target(move_list.moves[i])]} nodes: {nodes} old nodes: {old_nodes}')
+
+    print('Depth: ', depth)
+    print('Nodes: ', nodes)
+    print('Time: ', get_time_ms() - start, 'ms')
+# ---------------------------------------------------------------------- #
+
+# UCI ------------------------------------------------------------------ #
+
+# search position for the best move
+def search_position(depth : int) -> None:
+
+    # best move placeholder
+    print('bestmove e2e4')
+
+# parses user/GUI move string input
+def parse_move(move_string : str) -> int:
+
+    # create move list instance
+    move_list = Moves()
+
+    # generate moves
+    generate_moves(move_list)
+
+    # parse source square
+    source_square = ( ord(move_string[0]) - ord('a') ) + ( 8 - ( ord(move_string[1]) - ord('0') ) ) * 8
+
+    # parse target square
+    target_square = ( ord(move_string[2]) - ord('a') ) + ( 8 - ( ord(move_string[3]) - ord('0') ) ) * 8
+
+    # loop over generated moves
+    for i in range(move_list.count):
+
+        # init move
+        move = move_list.moves[i]
+
+        # check if move is valid
+        if source_square == get_move_source(move) and target_square == get_move_target(move):
+
+            # init promoted
+            promoted_piece = get_move_promoted(move)
+
+            # if promotion piece is avaiable
+            if promoted_piece:
+
+                if len(move_string) != 5: return 0
+
+                if (promoted_piece == piece_enum('Q') or promoted_piece == piece_enum('q')) and move_string[4] == 'q':
+                    
+                    # return legal move
+                    return move
+                
+                elif (promoted_piece == piece_enum('R') or promoted_piece == piece_enum('r')) and move_string[4] == 'r':
+                        
+                        # return legal move
+                        return move
+                
+                elif (promoted_piece == piece_enum('B') or promoted_piece == piece_enum('b')) and move_string[4] == 'b':
+                        
+                        # return legal move
+                        return move
+                
+                elif (promoted_piece == piece_enum('N') or promoted_piece == piece_enum('n')) and move_string[4] == 'n':
+                            
+                            # return legal move
+                            return move
+
+                # continue the loop on possible promotions
+                continue
+
+            # return legal move
+            return move
+    
+    # return illegal move
+    return 0
+
+# parse UCI position command  
+def parse_position(command : str) -> None:
+
+    # split total command
+    total_command = command.split('moves')
+
+    # split position command
+    position_command = str(total_command[0]).split(' ')
+
+    # defining current command
+    current_command = position_command[1]
+
+    if current_command == 'startpos':
+        # init chessboard in start position
+        parse_fen(start_position)
+
+    else:
+            # parse FEN string
+            parse_fen(' '.join(position_command[2:]))
+
+    
+    # check if moves are avaiable
+    if len(total_command) > 1:
+
+        # split moves command
+        moves_command = str(total_command[1]).split(' ')
+        
+        for i in range(1, len(moves_command)):
+
+            move = parse_move(moves_command[i])
+
+            if not move: break
+
+            make_move(move, move_type_enum('all_moves'))
+    
+    # print board
+    print_board()
+
+# parse UCI go command
+def parse_go(command: str) -> None:
+    # init depth
+    depth = -1
+
+    # handle fixed depth search
+    if "depth" in command:
+        try:
+            # convert string to integer and assign the result value to depth
+            depth = int(command.split("depth")[1].strip())
+        except:
+            depth = 4
+
+    # different time controls placeholder
+    else:
+        depth = 4
+
+    # search position
+    search_position(depth)
+
+# main UCI loop
+def uci_loop() -> None:
+
+    # user input buffer
+    user_input = ''
+
+    # print engine info
+    print(f'id name Royal Chess Engine')
+    print(f'id name Alessandro Duranti')
+    print(f'uciok')
+
+    # main loop
+    while True:
+
+        # reset user / GUI input
+        user_input = ''
+
+        # get user / GUI input
+        user_input = input() # or use sys.stdin.readline() for exact fgets equivalent
+
+        # continue the loop if no input
+        if not user_input:
+            continue
+
+        # make sure input is available
+        if user_input == '\n':
+            # continue the loop
+            continue
+
+        # parse UCI "isready" command
+        elif user_input.startswith("isready"):
+            print("readyok")
+            continue
+
+        # parse UCI "position" command
+        elif user_input.startswith("position"):
+            parse_position(user_input)
+            continue
+
+        # parse UCI new game command
+        elif user_input.startswith("ucinewgame"):
+            parse_position("position startpos")
+            continue
+
+        # parse UCI "go" command
+        elif user_input.startswith("go"):
+            parse_go(user_input)
+            continue
+
+        # parse UCI "quit" command
+        elif user_input.startswith("quit"):
+            break
+
+        # parse UCI command
+        elif user_input.startswith("uci"):
+            print(f'id name Royal Chess Engine')
+            print(f'id name Alessandro Duranti')
+            print(f'uciok')
+            continue
 
 # ---------------------------------------------------------------------- #
 
@@ -1605,18 +1846,7 @@ init_leaper_attacks()
 init_sliders_attacks(slider_enum('bishop'))
 init_sliders_attacks(slider_enum('rook'))
 
-# Parse FEN
-parse_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1 ")
-print_board()
-
-# start time tracking
-start = get_time_ms()
-
-# perft driver
-perft_driver(1)
-
-# time taken
-print(f'Time taken: {get_time_ms() - start} ms')
-print(f'Nodes: {nodes}')
+# connect to the GUI
+uci_loop()
 
 # ---------------------------------------------------------------------- #
