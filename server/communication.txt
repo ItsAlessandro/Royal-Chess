@@ -1,0 +1,15 @@
+TO CLIENT
+
+NAME -> username is needed
+CONFLICT -> inserted data is not unique
+OK -> inserted data is avaiable
+FORBIDDEN -> not possible
+
+TO SERVER
+
+NAME:username -> setting as username the new username
+CREATE:session_id -> creating a new session called session_id
+GET -> gets all the active sessions
+JOIN:session_id -> joins the session_id session
+DELETE:session_id -> if the user is the host of session_id the session is deleted
+MOVE:client_type:move -> sends a precise move to the interested client
